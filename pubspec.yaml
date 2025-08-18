@@ -39,4 +39,7 @@ flutter:
   assets:
     - assets/default_profile.png
     - assets/qr/my_upi_qr.jpeg
+    - assets/tr.png
+    - assets/tl.png
+    - assets/top_animated.jpeg
   uses-material-design: true

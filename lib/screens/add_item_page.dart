@@ -19,8 +19,6 @@ class _AddItemPageState extends State<AddItemPage> {
       'Home Utility',
     ],
     'Bedroom': [
-      'Tables',
-      'Chairs',
       'Mattress',
       'Bed frame',
       'AC/Cooler/Fan',
@@ -38,6 +36,12 @@ class _AddItemPageState extends State<AddItemPage> {
       'Equipment/Instruments',
       'Plant',
       'Suitcase/Trolley',
+      'Documents/letters',
+      'Electronics(phones, tablets)',
+      'Medicines/Health supplies',
+      'Gifts/Packages',
+      'Books/Stationery',
+
     ],
   };
 

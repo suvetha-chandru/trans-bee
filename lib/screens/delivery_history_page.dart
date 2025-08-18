@@ -21,6 +21,13 @@ class DeliveryHistoryPage extends StatelessWidget {
         .collection('bookings')
         .orderBy('timestamp', descending: true);
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final padding = screenWidth * 0.03;
+    final spacing = screenHeight * 0.01;
+    final iconSize = screenHeight * 0.022;
+    final fontSize = screenHeight * 0.018;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Delivery History'),
@@ -41,7 +48,9 @@ class DeliveryHistoryPage extends StatelessWidget {
           }
 
           return ListView.separated(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(padding),
+            itemCount: docs.length,
+            separatorBuilder: (_, __) => SizedBox(height: spacing),
             itemBuilder: (context, index) {
               final doc = docs[index];
               final data = doc.data() as Map<String, dynamic>? ?? {};
@@ -61,24 +70,19 @@ class DeliveryHistoryPage extends StatelessWidget {
                 background: Container(
                   color: Colors.red,
                   alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: EdgeInsets.symmetric(horizontal: padding * 2),
                   child: const Icon(Icons.delete, color: Colors.white),
                 ),
                 onDismissed: (_) async {
-                  // Use mounted context via SchedulerBinding
                   final scaffoldMessenger = ScaffoldMessenger.of(context);
                   try {
-                    // Delete the booking
                     await doc.reference.delete();
-
-                    // Delete the ride if rideId exists
                     if (rideId != null) {
                       await FirebaseFirestore.instance
                           .collection('rides')
                           .doc(rideId)
                           .delete();
                     }
-
                     scaffoldMessenger.showSnackBar(
                       const SnackBar(content: Text('Booking & ride deleted')),
                     );
@@ -91,57 +95,71 @@ class DeliveryHistoryPage extends StatelessWidget {
                 child: Card(
                   elevation: 1,
                   child: Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.all(padding),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Top row: route + status
+                        // Route Information
                         Row(
                           children: [
-                            const Icon(Icons.local_shipping, size: 20),
-                            const SizedBox(width: 8),
+                            Icon(Icons.local_shipping, size: iconSize),
+                            SizedBox(width: padding),
                             Expanded(
                               child: Text(
                                 '$pickup → $drop',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600),
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: fontSize),
+                                softWrap: true,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: spacing),
+                        // Date & Status
                         Row(
                           children: [
-                            const Icon(Icons.event,
-                                size: 18, color: Colors.grey),
-                            const SizedBox(width: 6),
-                            Text('$date • $time',
-                                style: const TextStyle(color: Colors.grey)),
-                            const Spacer(),
+                            Icon(Icons.event, size: iconSize, color: Colors.grey),
+                            SizedBox(width: padding * 0.5),
+                            Expanded(
+                              child: Text(
+                                '$date • $time',
+                                style: TextStyle(color: Colors.grey, fontSize: fontSize),
+                                softWrap: true,
+                              ),
+                            ),
                             if (statusLabel.isNotEmpty)
                               Text(
                                 statusLabel.toUpperCase(),
                                 style: TextStyle(
-                                    color: statusLabel.contains('Paid')
-                                        ? Colors.green
-                                        : Colors.orange,
-                                    fontWeight: FontWeight.bold),
+                                  color: statusLabel.contains('Paid')
+                                      ? Colors.green
+                                      : Colors.orange,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: fontSize,
+                                ),
                               ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: spacing),
+                        // Vehicle & Amount
                         Row(
                           children: [
-                            const Icon(Icons.directions_car_filled,
-                                size: 18, color: Colors.grey),
-                            const SizedBox(width: 6),
-                            Text(vehicle),
-                            const Spacer(),
-                            Text('₹${amount.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold)),
+                            Icon(Icons.directions_car_filled,
+                                size: iconSize, color: Colors.grey),
+                            SizedBox(width: padding * 0.5),
+                            Expanded(
+                              child: Text(
+                                vehicle,
+                                style: TextStyle(fontSize: fontSize),
+                                softWrap: true,
+                              ),
+                            ),
+                            Text(
+                              '₹${amount.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: fontSize),
+                            ),
                           ],
                         ),
                       ],
@@ -150,8 +168,6 @@ class DeliveryHistoryPage extends StatelessWidget {
                 ),
               );
             },
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemCount: docs.length,
           );
         },
       ),

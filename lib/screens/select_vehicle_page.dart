@@ -6,7 +6,7 @@ class SelectVehiclePage extends StatefulWidget {
   final String dropAddress;
   final String date;
   final String timeSlot;
-  final Map<String, int> selectedItems;  // Added this parameter
+  final Map<String, int> selectedItems;
   final double distance;
 
   const SelectVehiclePage({
@@ -15,12 +15,12 @@ class SelectVehiclePage extends StatefulWidget {
     required this.dropAddress,
     required this.date,
     required this.timeSlot,
-    required this.selectedItems, 
-     required this.distance, // Marked as required
+    required this.selectedItems,
+    required this.distance,
   });
 
   @override
-  State<SelectVehiclePage> createState() => _SelectVehiclePageState();  // Removed underscore to make public
+  State<SelectVehiclePage> createState() => _SelectVehiclePageState();
 }
 
 class _SelectVehiclePageState extends State<SelectVehiclePage> {
@@ -54,10 +54,17 @@ class _SelectVehiclePageState extends State<SelectVehiclePage> {
     },
   ];
 
-
-
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    // Responsive grid calculations
+    int crossAxisCount = screenWidth < 400 ? 1 : 2;
+    double gridSpacing = screenWidth * 0.04;
+    double imageHeight = (screenWidth / crossAxisCount - gridSpacing * 2) * 0.6; // 60% of card width
+    double textSpacing = screenHeight * 0.015;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -70,24 +77,30 @@ class _SelectVehiclePageState extends State<SelectVehiclePage> {
         elevation: 0.5,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+        padding: EdgeInsets.symmetric(
+          horizontal: screenWidth * 0.04,
+          vertical: screenHeight * 0.025,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Choose your vehicle',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: screenHeight * 0.028,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: screenHeight * 0.025),
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: vehicles.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 1.1,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: gridSpacing,
+                mainAxisSpacing: gridSpacing,
+                childAspectRatio: 0.95,
               ),
               itemBuilder: (context, index) {
                 final vehicle = vehicles[index];
@@ -96,6 +109,8 @@ class _SelectVehiclePageState extends State<SelectVehiclePage> {
                   name: vehicle['name'],
                   price: price.toStringAsFixed(2),
                   imageUrl: vehicle['image'],
+                  imageHeight: imageHeight,
+                  spacing: textSpacing,
                   isSelected: selectedVehicle == vehicle['name'],
                   onTap: () {
                     setState(() {
@@ -109,10 +124,10 @@ class _SelectVehiclePageState extends State<SelectVehiclePage> {
         ),
       ),
       bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(screenWidth * 0.04),
         color: Colors.white,
         child: SizedBox(
-          height: 50,
+          height: screenHeight * 0.065,
           width: double.infinity,
           child: ElevatedButton(
             onPressed: selectedVehicle.isNotEmpty
@@ -130,7 +145,7 @@ class _SelectVehiclePageState extends State<SelectVehiclePage> {
                           timeSlot: widget.timeSlot,
                           vehicleType: selectedVehicle,
                           price: calculatePrice(selectedVehicleData['pricePerKm']),
-                          selectedItems: widget.selectedItems,  // Pass the selected items
+                          selectedItems: widget.selectedItems,
                         ),
                       ),
                     );
@@ -145,11 +160,11 @@ class _SelectVehiclePageState extends State<SelectVehiclePage> {
                 borderRadius: BorderRadius.circular(30),
               ),
             ),
-            child: const Text(
+            child: Text(
               'Continue',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 16,
+                fontSize: screenHeight * 0.022,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -166,6 +181,8 @@ class VehicleCard extends StatelessWidget {
   final String imageUrl;
   final bool isSelected;
   final VoidCallback onTap;
+  final double imageHeight;
+  final double spacing;
 
   const VehicleCard({
     super.key,
@@ -174,6 +191,8 @@ class VehicleCard extends StatelessWidget {
     required this.imageUrl,
     required this.onTap,
     this.isSelected = false,
+    required this.imageHeight,
+    required this.spacing,
   });
 
   @override
@@ -182,7 +201,7 @@ class VehicleCard extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.all(10),
+        padding: EdgeInsets.all(spacing),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -209,18 +228,18 @@ class VehicleCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               child: Image.network(
                 imageUrl,
-                height: 100,
+                height: imageHeight,
                 width: double.infinity,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) => const Icon(Icons.error),
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: spacing / 1.5),
             Text(
               name,
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: spacing / 3),
             Text(
               "₹$price",
               style: TextStyle(

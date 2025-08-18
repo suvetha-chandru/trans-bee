@@ -3,11 +3,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter/foundation.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:http/http.dart' as http;
 import 'package:trans_bee/screens/select_vehicle_page.dart';
-import 'dart:convert';
 
 class ServiceBookingPage extends StatefulWidget {
   final Map<String, int> selectedItems;
@@ -25,11 +22,14 @@ class _ServiceBookingPageState extends State<ServiceBookingPage> {
 
   LatLng? _pickupLocation;
   LatLng? _dropLocation;
-  LatLng _mapCenter = const LatLng(11.1271, 78.6569);
+  LatLng _mapCenter = const LatLng(11.1271, 78.6569); // Tamil Nadu center
+  double _currentZoom = 6.5;
   double _zoomLevel = 7.0;
   bool _showMap = false;
   bool _isPickupSelection = true;
   bool _isLoading = false;
+
+  final MapController _mapController = MapController(); // added map controller
 
   @override
   void initState() {
@@ -42,65 +42,24 @@ class _ServiceBookingPageState extends State<ServiceBookingPage> {
 
     setState(() => _isLoading = true);
     try {
-      if (kIsWeb) {
-        await _getWebLocation();
-      } else {
-        await _getMobileLocation();
-      }
+      await _getMobileLocation();
     } catch (e) {
       debugPrint("Location initialization error: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              "Could not determine location. Please select manually",
-            ),
+            content: Text("Could not determine location. Please select manually"),
           ),
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  Future<void> _getWebLocation() async {
-    try {
-      final position = await _getBrowserPosition();
-      if (position != null) {
-        await _updateLocation(position['latitude']!, position['longitude']!);
-      }
-    } catch (e) {
-      throw Exception("Please enable location services in your browser");
-    }
-  }
-
-  Future<Map<String, double>?> _getBrowserPosition() async {
-    try {
-      if (kIsWeb) {
-        final position = await _getBrowserGeolocation();
-        return {
-          'latitude': position['latitude'] ?? 0.0, // Default to 0.0 if null
-          'longitude': position['longitude'] ?? 0.0,
-        };
-      }
-      return null;
-    } catch (e) {
-      debugPrint("Browser geolocation error: $e");
-      return null;
-    }
-  }
-
-  Future<Map<String, double>> _getBrowserGeolocation() async {
-    throw UnimplementedError("Web geolocation not implemented");
   }
 
   Future<void> _getMobileLocation() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      throw Exception("Location services are disabled");
-    }
+    if (!serviceEnabled) throw Exception("Location services are disabled");
 
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
@@ -120,15 +79,12 @@ class _ServiceBookingPageState extends State<ServiceBookingPage> {
 
   Future<void> _updateLocation(double lat, double lng) async {
     if (!mounted) return;
-
     if (_isWithinTamilNadu(lat, lng)) {
       final address = await _getAddressFromLatLng(lat, lng);
       if (mounted) {
         setState(() {
           _mapCenter = LatLng(lat, lng);
           _zoomLevel = 12.0;
-          _pickupLocation = _mapCenter;
-          _pickupController.text = address;
         });
       }
     }
@@ -140,36 +96,20 @@ class _ServiceBookingPageState extends State<ServiceBookingPage> {
 
   Future<String> _getAddressFromLatLng(double lat, double lng) async {
     try {
-      if (kIsWeb) {
-        final response = await http.get(
-          Uri.parse(
-            'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lng&zoom=18&addressdetails=1',
-          ),
-        );
-        final data = json.decode(response.body);
-        return _formatWebAddress(data['address']);
-      } else {
-        final places = await placemarkFromCoordinates(lat, lng);
-        if (places.isNotEmpty) {
-          final place = places.first;
-          return "${place.street ?? ''}, ${place.locality ?? ''}, ${place.administrativeArea ?? ''}"
-              .replaceAll(RegExp(r'^,\s*|\s*,\s*$'), '');
-        }
+      final places = await placemarkFromCoordinates(lat, lng);
+      if (places.isNotEmpty) {
+        final place = places.first;
+        return [
+          place.street,
+          place.subLocality,
+          place.locality,
+          place.administrativeArea
+        ].where((p) => p != null && p.isNotEmpty).join(', ');
       }
     } catch (e) {
       debugPrint("Geocoding error: $e");
     }
     return "Near ${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}";
-  }
-
-  String _formatWebAddress(Map<String, dynamic> address) {
-    return [
-      address['road'],
-      address['village'],
-      address['town'],
-      address['city'],
-      address['state'],
-    ].where((part) => part != null).join(', ');
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -180,9 +120,7 @@ class _ServiceBookingPageState extends State<ServiceBookingPage> {
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (picked != null && mounted) {
-      setState(() {
-        _dateController.text = DateFormat('yyyy-MM-dd').format(picked);
-      });
+      setState(() => _dateController.text = DateFormat('yyyy-MM-dd').format(picked));
     }
   }
 
@@ -198,9 +136,7 @@ class _ServiceBookingPageState extends State<ServiceBookingPage> {
     if (!_isWithinTamilNadu(point.latitude, point.longitude)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Please select a location within Tamil Nadu"),
-          ),
+          const SnackBar(content: Text("Please select a location within Tamil Nadu")),
         );
       }
       return;
@@ -209,10 +145,7 @@ class _ServiceBookingPageState extends State<ServiceBookingPage> {
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      final address = await _getAddressFromLatLng(
-        point.latitude,
-        point.longitude,
-      );
+      final address = await _getAddressFromLatLng(point.latitude, point.longitude);
       if (mounted) {
         setState(() {
           if (_isPickupSelection) {
@@ -225,32 +158,20 @@ class _ServiceBookingPageState extends State<ServiceBookingPage> {
           _showMap = false;
         });
       }
-    } catch (e) {
-      debugPrint("Address fetch error: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Could not get address for this location"),
-          ),
-        );
-      }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   double _calculateDistance() {
     if (_pickupLocation == null || _dropLocation == null) return 0.0;
-
     return Geolocator.distanceBetween(
           _pickupLocation!.latitude,
           _pickupLocation!.longitude,
           _dropLocation!.latitude,
           _dropLocation!.longitude,
         ) /
-        1000; // Convert meters to kilometers
+        1000; // km
   }
 
   @override
@@ -353,81 +274,99 @@ class _ServiceBookingPageState extends State<ServiceBookingPage> {
   }
 
   Widget _buildMapView() {
-    return Stack(
-      children: [
-        FlutterMap(
-          options: MapOptions(
-            initialCenter: _mapCenter, // Changed from 'center'
-            initialZoom: _zoomLevel,
-            maxZoom: 16.0,
-            minZoom: 7.0,
-            interactionOptions: const InteractionOptions(
-              flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-            ),
-            onTap: (tapPosition, point) => _handleMapTap(point),
+  return Stack(
+    children: [
+      FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: _mapCenter,  // use initialCenter
+          initialZoom: _currentZoom,  // use initialZoom
+          minZoom: 5.0,
+          maxZoom: 16.0,
+          onTap: (tapPosition, point) => _handleMapTap(point),
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           ),
+          MarkerLayer(
+            markers: [
+              if (_pickupLocation != null)
+                Marker(
+                  point: _pickupLocation!,
+                  width: 40,
+                  height: 40,
+                  child: const Icon(
+                    Icons.location_pin,
+                    color: Colors.green,
+                    size: 40,
+                  ),
+                ),
+              if (_dropLocation != null)
+                Marker(
+                  point: _dropLocation!,
+                  width: 40,
+                  height: 40,
+                  child: const Icon(
+                    Icons.location_pin,
+                    color: Colors.red,
+                    size: 40,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+      // Back button
+      Positioned(
+        top: 16,
+        left: 16,
+        child: FloatingActionButton(
+          onPressed: () => setState(() => _showMap = false),
+          mini: true,
+          child: const Icon(Icons.arrow_back),
+        ),
+      ),
+      // Zoom buttons
+      Positioned(
+        top: 16,
+        right: 16,
+        child: Column(
           children: [
-            TileLayer(
-              urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-              subdomains: const ['a', 'b', 'c'],
+            FloatingActionButton(
+              heroTag: 'zoom_in',
+              onPressed: () {
+                setState(() {
+                  _currentZoom = (_currentZoom + 1).clamp(5.0, 16.0);
+                  _mapController.move(_mapCenter, _currentZoom);
+                });
+              },
+              mini: true,
+              child: const Icon(Icons.zoom_in),
             ),
-            MarkerLayer(
-              markers: [
-                if (_pickupLocation != null)
-                  Marker(
-                    point: _pickupLocation!,
-                    child: const Icon(
-                      Icons.location_pin,
-                      color: Colors.green,
-                      size: 40,
-                    ),
-                  ),
-                if (_dropLocation != null)
-                  Marker(
-                    point: _dropLocation!,
-                    child: const Icon(
-                      Icons.location_pin,
-                      color: Colors.red,
-                      size: 40,
-                    ),
-                  ),
-              ],
+            const SizedBox(height: 8),
+            FloatingActionButton(
+              heroTag: 'zoom_out',
+              onPressed: () {
+                setState(() {
+                  _currentZoom = (_currentZoom - 1).clamp(5.0, 16.0);
+                  _mapController.move(_mapCenter, _currentZoom);
+                });
+              },
+              mini: true,
+              child: const Icon(Icons.zoom_out),
             ),
           ],
         ),
-        Positioned(
-          top: 16,
-          left: 16,
-          child: FloatingActionButton(
-            onPressed: () {
-              if (mounted) {
-                setState(() => _showMap = false);
-              }
-            },
-            mini: true,
-            child: const Icon(Icons.arrow_back),
-          ),
-        ),
-        Positioned(
-          bottom: 16,
-          left: 0,
-          right: 0,
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.white.withAlpha(200)),
-            child: Text(
-              _isPickupSelection
-                  ? "Tap on map to select pickup location (TN only)"
-                  : "Tap on map to select drop location (TN only)",
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
 }
+
+}
+
+// ConfirmationPage class stays the same (your original code is fine)
+
 
 class ConfirmationPage extends StatefulWidget {
   final String pickupAddress;
@@ -450,8 +389,7 @@ class ConfirmationPage extends StatefulWidget {
 }
 
 class _ConfirmationPageState extends State<ConfirmationPage> {
-  final TextEditingController _pickupHouseNoController =
-      TextEditingController();
+  final TextEditingController _pickupHouseNoController = TextEditingController();
   final TextEditingController _pickupMobileController = TextEditingController();
   final TextEditingController _dropHouseNoController = TextEditingController();
   final TextEditingController _dropMobileController = TextEditingController();
@@ -476,10 +414,7 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Confirm Booking Details"),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text("Confirm Booking Details"), centerTitle: true),
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -496,12 +431,7 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.home),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter house number/street';
-                  }
-                  return null;
-                },
+                validator: (value) => (value == null || value.isEmpty) ? 'Please enter house number/street' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -523,12 +453,8 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
                 ),
                 keyboardType: TextInputType.phone,
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter mobile number';
-                  }
-                  if (value.length < 10) {
-                    return 'Enter valid 10-digit number';
-                  }
+                  if (value == null || value.isEmpty) return 'Please enter mobile number';
+                  if (value.length < 10) return 'Enter valid 10-digit number';
                   return null;
                 },
               ),
@@ -542,12 +468,7 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.home),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter house number/street';
-                  }
-                  return null;
-                },
+                validator: (value) => (value == null || value.isEmpty) ? 'Please enter house number/street' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -569,12 +490,8 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
                 ),
                 keyboardType: TextInputType.phone,
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter mobile number';
-                  }
-                  if (value.length < 10) {
-                    return 'Enter valid 10-digit number';
-                  }
+                  if (value == null || value.isEmpty) return 'Please enter mobile number';
+                  if (value.length < 10) return 'Enter valid 10-digit number';
                   return null;
                 },
               ),
@@ -582,50 +499,25 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
               _buildSectionHeader("Booking Date"),
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 16,
-                ),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(4),
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(4)),
                 child: Row(
-                  children: [
-                    const Icon(Icons.calendar_today),
-                    const SizedBox(width: 12),
-                    Text(widget.date, style: const TextStyle(fontSize: 16)),
-                  ],
+                  children: [const Icon(Icons.calendar_today), const SizedBox(width: 12), Text(widget.date, style: const TextStyle(fontSize: 16))],
                 ),
               ),
               const SizedBox(height: 24),
               _buildSectionHeader("Select Time of Pickup"),
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(4),
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(4)),
                 child: DropdownButtonFormField<String>(
                   value: _selectedTimeSlot,
                   hint: const Text("Select time slot"),
                   isExpanded: true,
-                  items: _timeSlots.map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                  onChanged: (newValue) =>
-                      setState(() => _selectedTimeSlot = newValue),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 8),
-                  ),
+                  items: _timeSlots.map((String value) => DropdownMenuItem<String>(value: value, child: Text(value))).toList(),
+                  onChanged: (newValue) => setState(() => _selectedTimeSlot = newValue),
+                  decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 8)),
                 ),
               ),
               const SizedBox(height: 32),
@@ -637,12 +529,13 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
                         context,
                         MaterialPageRoute(
                           builder: (context) => SelectVehiclePage(
-                              pickupAddress: widget.pickupAddress,
-                              dropAddress: widget.dropAddress,
-                              date: widget.date,
-                              timeSlot: _selectedTimeSlot ?? 'Not selected',
-                              selectedItems: widget.selectedItems,
-                              distance: widget.distance),
+                            pickupAddress: widget.pickupAddress,
+                            dropAddress: widget.dropAddress,
+                            date: widget.date,
+                            timeSlot: _selectedTimeSlot ?? 'Not selected',
+                            selectedItems: widget.selectedItems,
+                            distance: widget.distance,
+                          ),
                         ),
                       );
                     }
@@ -651,13 +544,8 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
                     minimumSize: const Size(120, 50),
                     backgroundColor: const Color.fromARGB(255, 50, 68, 183),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 14,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                   ),
                   child: const Text("CONFIRM BOOKING"),
                 ),
@@ -669,14 +557,8 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: Colors.black,
-      ),
-    );
-  }
+  Widget _buildSectionHeader(String title) => Text(
+        title,
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
+      );
 }
