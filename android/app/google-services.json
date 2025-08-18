@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "474460716855",
+    "project_id": "trans-bee",
+    "storage_bucket": "trans-bee.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:474460716855:android:19a473fcf213e9849424b2",
+        "android_client_info": {
+          "package_name": "com.example.trans_bee"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA7FCZa3AEMqr5Ze5_jaVgLDPNe082lc_g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
