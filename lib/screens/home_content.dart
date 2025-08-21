@@ -43,21 +43,21 @@ class HomeContent extends StatelessWidget {
 
           // Top-left and top-right images (minimal/no animation)
           Positioned(
-            top: 0,
+            top: MediaQuery.of(context).padding.top, // push below status bar
             left: 0,
             child: SizedBox(
               width: 100,
               height: 100,
-              child: Image.asset('assets/tl.png'), // static image
+              child: Image.asset('assets/tl.png'),
             ),
           ),
           Positioned(
-            top: 0,
+            top: MediaQuery.of(context).padding.top, // same for right side
             right: 0,
             child: SizedBox(
               width: 100,
               height: 100,
-              child: Image.asset('assets/tr.png'), // static image
+              child: Image.asset('assets/tr.png'),
             ),
           ),
 
@@ -83,7 +83,7 @@ class HomeContent extends StatelessWidget {
                           child: SizedBox(
                             width: 150,
                             height: 150,
-                            child: Image.asset('assets/top_animated.jpeg'),
+                            child: Image.asset('assets/top_animated.png'),
                           ),
                         ),
                       );
@@ -101,21 +101,26 @@ class HomeContent extends StatelessWidget {
                         opacity: value,
                         child: Transform.translate(
                           offset: Offset(0, 20 * (1 - value)),
-                          child: Text(
-                            "Welcome to Trans-Bee",
-                            style: TextStyle(
-                              fontSize: 34,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue.shade900,
-                              shadows: [
-                                Shadow(
-                                  blurRadius: 15,
-                                  color: Colors.black26,
-                                  offset: Offset(3, 3),
-                                ),
-                              ],
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              "Welcome to Trans-Bee",
+                              style: TextStyle(
+                                fontSize: 34,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue.shade900,
+                                shadows: [
+                                  Shadow(
+                                    blurRadius: 15,
+                                    color: Colors.black26,
+                                    offset: Offset(3, 3),
+                                  ),
+                                ],
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            textAlign: TextAlign.center,
                           ),
                         ),
                       );

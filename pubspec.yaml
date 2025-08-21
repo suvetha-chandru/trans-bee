@@ -41,5 +41,5 @@ flutter:
     - assets/qr/my_upi_qr.jpeg
     - assets/tr.png
     - assets/tl.png
-    - assets/top_animated.jpeg
+    - assets/top_animated.png
   uses-material-design: true
