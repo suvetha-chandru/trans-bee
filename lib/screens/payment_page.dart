@@ -27,7 +27,7 @@ class _PaymentPageState extends State<PaymentPage> {
   late Razorpay _razorpay; // ✅ Razorpay instance
 
   final List<Map<String, dynamic>> _paymentMethods = [
-    {'title': 'UPI Transaction', 'icon': Icons.qr_code, 'type': 'upi'},
+    {'title': 'Online Transaction', 'icon': Icons.qr_code, 'type': 'upi'},
     {'title': 'Cash on Delivery', 'icon': Icons.money, 'type': 'cod'},
   ];
 
@@ -74,10 +74,6 @@ class _PaymentPageState extends State<PaymentPage> {
       'amount': (amount * 100).toInt(), // Razorpay uses paise
       'name': 'TransBee',
       'description': 'Ride Payment',
-      'prefill': {
-        'contact': '9876543210',
-        'email': 'test@example.com'
-      },
       'method': {
         'upi': true, // ✅ Enable UPI
       }
@@ -162,7 +158,7 @@ class _PaymentPageState extends State<PaymentPage> {
                 onTap: () {
                   setState(() => _selectedPaymentMethod = m['type']);
                   if (m['type'] == 'upi') {
-                    _openRazorpayCheckout(totalAmount); // ✅ Razorpay instead of QR
+                    _openRazorpayCheckout(totalAmount); 
                   }
                 },
               )),
