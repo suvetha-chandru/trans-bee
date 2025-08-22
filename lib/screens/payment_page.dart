@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:trans_bee/screens/home_page.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart'; // ✅ Razorpay import
 
 class PaymentPage extends StatefulWidget {
-  final double amount; // already final
+  final double amount; 
   final bool isSharedRide;
   final Map<String, dynamic> bookingPayload;
 
@@ -23,14 +24,75 @@ class _PaymentPageState extends State<PaymentPage> {
   String? _selectedPaymentMethod; // 'upi' or 'cod'
   bool _isProcessing = false;
 
+  late Razorpay _razorpay; // ✅ Razorpay instance
+
   final List<Map<String, dynamic>> _paymentMethods = [
     {'title': 'UPI Transaction', 'icon': Icons.qr_code, 'type': 'upi'},
     {'title': 'Cash on Delivery', 'icon': Icons.money, 'type': 'cod'},
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+  }
+
+  @override
+  void dispose() {
+    _razorpay.clear();
+    super.dispose();
+  }
+
+  // ✅ Razorpay callbacks
+  void _handlePaymentSuccess(PaymentSuccessResponse response) async {
+    await _processPayment(context, widget.amount);
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const HomePage()),
+      (route) => false,
+    );
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Payment failed. Try again.")),
+    );
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("External Wallet Selected: ${response.walletName}")),
+    );
+  }
+
+  void _openRazorpayCheckout(double amount) {
+    var options = {
+      'key': 'rzp_test_R8KdLweu7ASxsU', // 🔑 replace with your Razorpay key
+      'amount': (amount * 100).toInt(), // Razorpay uses paise
+      'name': 'TransBee',
+      'description': 'Ride Payment',
+      'prefill': {
+        'contact': '9876543210',
+        'email': 'test@example.com'
+      },
+      'method': {
+        'upi': true, // ✅ Enable UPI
+      }
+    };
+
+    try {
+      _razorpay.open(options);
+    } catch (e) {
+      debugPrint("Error: $e");
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final totalAmount = widget.amount; // no /2, final price already
+    final totalAmount = widget.amount;
 
     return Scaffold(
       appBar: AppBar(
@@ -100,7 +162,7 @@ class _PaymentPageState extends State<PaymentPage> {
                 onTap: () {
                   setState(() => _selectedPaymentMethod = m['type']);
                   if (m['type'] == 'upi') {
-                    _showUPIQRCode(context, totalAmount);
+                    _openRazorpayCheckout(totalAmount); // ✅ Razorpay instead of QR
                   }
                 },
               )),
@@ -114,12 +176,15 @@ class _PaymentPageState extends State<PaymentPage> {
           onPressed: _selectedPaymentMethod == null
               ? null
               : () async {
-                  await _processPayment(context, totalAmount);
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => const HomePage()),
-                    (route) => false,
-                  );
+                  if (_selectedPaymentMethod == 'cod') {
+                    await _processPayment(context, totalAmount);
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (context) => const HomePage()),
+                      (route) => false,
+                    );
+                  }
+                  // For UPI, Razorpay triggers success callback
                 },
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color.fromARGB(255, 50, 68, 183),
@@ -162,46 +227,7 @@ class _PaymentPageState extends State<PaymentPage> {
     );
   }
 
-  void _showUPIQRCode(BuildContext parentContext, double amount) {
-    showDialog(
-      context: parentContext,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text("Scan to Pay"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset(
-              'assets/qr/my_upi_qr.jpeg',
-              width: 200,
-              height: 250,
-              fit: BoxFit.cover,
-            ),
-            const SizedBox(height: 10),
-            const Text("UPI ID: suvethachandru07@okhdfcbank"),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(dialogCtx);
-              await _processPayment(parentContext, amount);
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const HomePage()),
-                (route) => false,
-              );
-            },
-            child: const Text("I Paid"),
-          ),
-        ],
-      ),
-    );
-  }
-
+  // ✅ Save to Firestore
   Future<void> _processPayment(BuildContext context, double finalAmount) async {
     if (_isProcessing || _selectedPaymentMethod == null) return;
     setState(() => _isProcessing = true);
@@ -211,7 +237,6 @@ class _PaymentPageState extends State<PaymentPage> {
     final isUPI = _selectedPaymentMethod == 'upi';
 
     if (user != null) {
-      // 1️⃣ Save booking to user's collection
       final bookingDoc = {
         ...widget.bookingPayload,
         'totalAmount': finalAmount,
@@ -233,7 +258,6 @@ class _PaymentPageState extends State<PaymentPage> {
         'userId': user.uid,
       });
 
-      // 2️⃣ Update rides collection
       if (widget.bookingPayload.containsKey('rideId')) {
         await FirebaseFirestore.instance
             .collection('rides')
@@ -241,7 +265,6 @@ class _PaymentPageState extends State<PaymentPage> {
             .update({'status': 'completed', 'finalPrice': finalAmount});
       }
 
-      // 3️⃣ Remove activeRideId from user
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -249,7 +272,5 @@ class _PaymentPageState extends State<PaymentPage> {
     }
 
     setState(() => _isProcessing = false);
-
-    Navigator.pop(context, isUPI ? 'UPI' : 'COD');
   }
 }
